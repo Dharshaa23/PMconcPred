@@ -1,0 +1,171 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyPNDgNJVGwmjV3nGuBLaLjY",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/Dharshaa23/PMconcPred/blob/main/PM2.5%20prediction%20model\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# PM2.5 Prediction for India: Sensor + No-Sensor Cities\n",
+        "\n",
+        "import pandas as pd\n",
+        "import numpy as np\n",
+        "import matplotlib.pyplot as plt\n",
+        "import seaborn as sns\n",
+        "from sklearn.ensemble import RandomForestRegressor\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score\n",
+        "from sklearn.neighbors import KNeighborsRegressor\n",
+        "\n",
+        "# -----------------------------\n",
+        "# Step 1: Create Synthetic Dataset\n",
+        "# -----------------------------\n",
+        "np.random.seed(42)\n",
+        "\n",
+        "cities_sensor = [\n",
+        "    (\"Delhi\", 28.6, 77.2),\n",
+        "    (\"Mumbai\", 19.0, 72.8),\n",
+        "    (\"Kolkata\", 22.6, 88.4),\n",
+        "    (\"Chennai\", 13.1, 80.2),\n",
+        "    (\"Bengaluru\", 12.9, 77.6)\n",
+        "]\n",
+        "\n",
+        "cities_nosensor = [\n",
+        "    (\"Mysuru\", 12.3, 76.6),\n",
+        "    (\"Madurai\", 9.9, 78.1),\n",
+        "    (\"Varanasi\", 25.3, 82.9),\n",
+        "    (\"Guwahati\", 26.1, 91.7),\n",
+        "    (\"Udaipur\", 24.6, 73.7)\n",
+        "]\n",
+        "\n",
+        "data = []\n",
+        "\n",
+        "for date in pd.date_range(\"2025-01-01\", \"2025-01-15\"):\n",
+        "    for city, lat, lon in cities_sensor:\n",
+        "        temp = np.random.uniform(15, 40)\n",
+        "        humid = np.random.uniform(30, 80)\n",
+        "        aod = np.random.uniform(0.1, 1.0)\n",
+        "        wind = np.random.uniform(0.5, 6)\n",
+        "        blh = np.random.uniform(300, 1500)\n",
+        "        pressure = np.random.uniform(990, 1025)\n",
+        "        pm = (\n",
+        "            50 - 0.5*temp + 0.4*humid + 35*aod - 0.6*wind - 0.01*blh + 0.03*pressure + np.random.normal(0, 5)\n",
+        "        )\n",
+        "        data.append([date, city, lat, lon, temp, humid, wind, aod, blh, pressure, pm])\n",
+        "\n",
+        "sensor_df = pd.DataFrame(data, columns=[\n",
+        "    \"date\", \"city\", \"lat\", \"lon\", \"temperature\", \"humidity\", \"wind_speed\",\n",
+        "    \"aod\", \"boundary_layer_height\", \"pressure\", \"pm2_5\"\n",
+        "])\n",
+        "\n",
+        "# -----------------------------\n",
+        "# Step 2: Train ML Model on Sensor Cities\n",
+        "# -----------------------------\n",
+        "X = sensor_df[[\"temperature\", \"humidity\", \"wind_speed\", \"aod\", \"boundary_layer_height\", \"pressure\"]]\n",
+        "y = sensor_df[\"pm2_5\"]\n",
+        "\n",
+        "X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n",
+        "\n",
+        "model = RandomForestRegressor(n_estimators=100, random_state=42)\n",
+        "model.fit(X_train, y_train)\n",
+        "\n",
+        "# -----------------------------\n",
+        "# Step 3: Generate No-Sensor City Data for Prediction\n",
+        "# -----------------------------\n",
+        "future_data = []\n",
+        "for city, lat, lon in cities_nosensor:\n",
+        "    temp = np.random.uniform(15, 40)\n",
+        "    humid = np.random.uniform(30, 80)\n",
+        "    aod = np.random.uniform(0.1, 1.0)\n",
+        "    wind = np.random.uniform(0.5, 6)\n",
+        "    blh = np.random.uniform(300, 1500)\n",
+        "    pressure = np.random.uniform(990, 1025)\n",
+        "    future_data.append([\"2025-01-16\", city, lat, lon, temp, humid, wind, aod, blh, pressure])\n",
+        "\n",
+        "future_df = pd.DataFrame(future_data, columns=[\n",
+        "    \"date\", \"city\", \"lat\", \"lon\", \"temperature\", \"humidity\", \"wind_speed\",\n",
+        "    \"aod\", \"boundary_layer_height\", \"pressure\"\n",
+        "])\n",
+        "\n",
+        "future_X = future_df[[\"temperature\", \"humidity\", \"wind_speed\", \"aod\", \"boundary_layer_height\", \"pressure\"]]\n",
+        "future_df[\"pm2_5\"] = model.predict(future_X)\n",
+        "\n",
+        "# -----------------------------\n",
+        "# Step 4: Alert System & Visualization\n",
+        "# -----------------------------\n",
+        "def get_alert(pm):\n",
+        "    if pm > 90:\n",
+        "        return \"🔴 Very Poor\"\n",
+        "    elif pm > 60:\n",
+        "        return \"🟠 Moderate\"\n",
+        "    else:\n",
+        "        return \"🟢 Good\"\n",
+        "\n",
+        "future_df[\"alert\"] = future_df[\"pm2_5\"].apply(get_alert)\n",
+        "\n",
+        "# Save for map display\n",
+        "future_df.to_csv(\"predicted_pm25_nosensor_2025_01_16.csv\", index=False)\n",
+        "\n",
+        "# Visualize\n",
+        "import folium\n",
+        "from folium.plugins import MarkerCluster\n",
+        "\n",
+        "m = folium.Map(location=[23.5, 80.5], zoom_start=5)\n",
+        "marker_cluster = MarkerCluster().add_to(m)\n",
+        "\n",
+        "for i, row in future_df.iterrows():\n",
+        "    folium.CircleMarker(\n",
+        "        location=(row[\"lat\"], row[\"lon\"]),\n",
+        "        radius=10,\n",
+        "        color=\"red\" if row[\"pm2_5\"] > 90 else \"orange\" if row[\"pm2_5\"] > 60 else \"green\",\n",
+        "        fill=True,\n",
+        "        fill_opacity=0.6,\n",
+        "        popup=f\"{row['city']}\\nPM2.5: {row['pm2_5']:.1f} µg/m³\\nAlert: {row['alert']}\"\n",
+        "    ).add_to(marker_cluster)\n",
+        "\n",
+        "m.save(\"pm25_india_map.html\")\n",
+        "print(\"✔️ Prediction complete. Map saved as pm25_india_map.html\")\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "7UgS0l0jkdRV",
+        "outputId": "ab1b48e6-9035-4425-d183-08af083de41c"
+      },
+      "execution_count": 2,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "✔️ Prediction complete. Map saved as pm25_india_map.html\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
